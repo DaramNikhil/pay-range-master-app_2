@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+openpyxl
+plotly
+firebase-admin 
+pyrebase4
+setuptools
