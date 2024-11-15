@@ -8,3 +8,7 @@ plotly
 firebase-admin 
 pyrebase4
 setuptools
+gspread 
+oauth2client 
+smtplib
+numpy_financial

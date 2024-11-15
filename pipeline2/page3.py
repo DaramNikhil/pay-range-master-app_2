@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import sys, os
 sys.path.append(os.getcwd())
-from calculations import market_pay, market_pay_based
+from calculations import market_pay, market_pay_based, combination_strategy
 from pipeline2 import page4
 
 def data_upload():
@@ -11,7 +11,7 @@ def data_upload():
     df = None
     if uploaded_file is not None:
         df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-        df = df.dropna()
+        st.session_state.row_data = df
         st.write(f"total records {df.shape[0]}")
         col1, col2 = st.columns(2)
         with col1:
@@ -33,7 +33,7 @@ def data_upload():
             if st.session_state.selected_approach == "Market rates of jobs to create pay ranges":
                 preprocess_df, plot_data = market_pay.main(df=df)
                 st.session_state.custom_df = preprocess_df
-                st.session_state.plot_data = plot_data
+                st.session_state.plt_data = plot_data
                 st.session_state.page = "page_4"
 
             elif st.session_state.selected_approach == "Pay data of existing employees to build pay ranges":
@@ -42,7 +42,7 @@ def data_upload():
                 st.session_state.page = "page_4"
 
             elif st.session_state.selected_approach == "A combination strategy as it's well aligned with my organization":
-                preprocess_df = market_pay.main(df=df)
+                preprocess_df = combination_strategy.calculate(df=df)
                 st.session_state.custom_df = preprocess_df
                 st.session_state.page = "page_4"
 

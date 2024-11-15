@@ -85,10 +85,11 @@ def create_salary_structure_bar_chart(df_results):
 
 
 def create_salary_structure_bar_chart_2(df_results_2):
-    merged_df = pd.merge(df_results_2, result_df[['Grade', 'Range_Min', 'Mid', 'Range_Max']], on='Grade', how='left')
+    df = st.session_state.row_data
+    merged_df = pd.merge(df, df_results_2[['Grade', 'Range_Min', 'Mid', 'Range_Max']], on='Grade', how='left')
 
     # Ensure that the grades are in ascending order for plotting
-    result_df = result_df.sort_values('Grade')
+    df_results_2 = df_results_2.sort_values('Grade')
 
     # Create the figure
     fig = go.Figure()
@@ -125,7 +126,7 @@ def create_salary_structure_bar_chart_2(df_results_2):
     ))
 
     # Get unique grades in ascending order
-    grades = sorted(result_df['Grade'].unique())
+    grades = sorted(df_results_2['Grade'].unique())
 
     # Prepare horizontal lines for Range_Min, Mid, and Range_Max
     for idx, grade in enumerate(grades):
@@ -135,9 +136,9 @@ def create_salary_structure_bar_chart_2(df_results_2):
         x_vals = np.linspace(x_start, x_end, num=10)  # Increase number of points
 
         # Extract the Range Min, Mid, and Max for the current grade
-        range_min = result_df.loc[result_df['Grade'] == grade, 'Range_Min'].values[0]
-        mid = result_df.loc[result_df['Grade'] == grade, 'Mid'].values[0]
-        range_max = result_df.loc[result_df['Grade'] == grade, 'Range_Max'].values[0]
+        range_min = df_results_2.loc[df_results_2['Grade'] == grade, 'Range_Min'].values[0]
+        mid = df_results_2.loc[df_results_2['Grade'] == grade, 'Mid'].values[0]
+        range_max = df_results_2.loc[df_results_2['Grade'] == grade, 'Range_Max'].values[0]
 
         # Add horizontal line for Range Min (green, solid line)
         fig.add_trace(go.Scatter(
