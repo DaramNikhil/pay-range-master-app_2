@@ -3,7 +3,7 @@ import numpy as np
 import plotly.graph_objs as go
 import plotly.io as pio
 
-def analyze_salary_distribution(df, min_employees_per_grade=2, output_csv='salary_analysis.csv'):
+def analyze_salary_distribution(df, min_employees_per_grade=2, output_csv=r'artifacts\option_2.csv'):
   # Ensure correct data types
   df['Base Pay'] = pd.to_numeric(df['Base Pay'], errors='coerce')
   df['Grade'] = pd.to_numeric(df['Grade'], errors='coerce').astype('Int64')
@@ -90,11 +90,15 @@ def analyze_salary_distribution(df, min_employees_per_grade=2, output_csv='salar
   mids['Range_Max'] = mids['Range_Max'].round(0).astype(int)
   mids['Spread'] = mids['Spread'].round(2)
 
-  # Calculate Range Overlap
+  
   mids.sort_values('Grade', ascending=False, inplace=True)
   mids['Range_Overlap'] = (mids['Range_Max'].shift(-1) / mids['Range_Min']) - 1
   mids['Range_Overlap'] = (mids['Range_Overlap'] * 100).round(2)
   mids['Range_Overlap'] = mids['Range_Overlap'].fillna('')
 
-  # Arrange columns
-  result_df = mids[['Grade', 'Range_Min', 'Mid', 'Range_Max', 'Spread', 'Mid_Pnt_Diff', 'Range_Overlap', ]]
+  
+  result_df = mids[['Grade', 'Range_Min', 'Mid', 'Range_Max', 'Spread', 'Mid_Pnt_Diff', 'Range_Overlap']]
+
+  result_df.to_csv(output_csv, index=False)
+  access_df_2 = pd.read_csv(output_csv)
+  return access_df_2

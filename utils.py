@@ -84,8 +84,8 @@ def create_salary_structure_bar_chart(df_results):
 
 
 
-def create_salary_structure_bar_chart_2(df_results):
-    merged_df = pd.merge(df, result_df[['Grade', 'Range_Min', 'Mid', 'Range_Max']], on='Grade', how='left')
+def create_salary_structure_bar_chart_2(df_results_2):
+    merged_df = pd.merge(df_results_2, result_df[['Grade', 'Range_Min', 'Mid', 'Range_Max']], on='Grade', how='left')
 
     # Ensure that the grades are in ascending order for plotting
     result_df = result_df.sort_values('Grade')

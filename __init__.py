@@ -1,140 +1,113 @@
-import streamlit as st
-import firebase_admin
-from firebase_admin import credentials, auth, firestore
-import pyrebase
-import re
-from datetime import datetime
+import pandas as pd
+import numpy as np
 
-# Initialize Firebase Admin SDK
-# Make sure to replace the path with your firebase-credentials.json file
-if not firebase_admin._apps:
-    cred = credentials.Certificate("path/to/your/firebase-credentials.json")
-    firebase_admin.initialize_app(cred)
+# Read your data
+df = pd.read_excel(r"C:\Users\admin\Downloads\Data Template Option 2.xlsx")
 
-firebaseConfig = {
-    'apiKey': "AIzaSyDsrIcuUlnVM-CYNj_lLlSrfiX_bqOx6so",
-    'authDomain': "paygap-project.firebaseapp.com",
-    'projectId': "paygap-project",
-    'databaseURL': "https://paygap-project-default-rtdb.europe-west1.firebasedatabase.app/",
-    'storageBucket': "paygap-project.firebasestorage.app",
-    'messagingSenderId': "288758264928",
-    'appId': "1:288758264928:web:94f7e0a06610a91a113f05",
-    'measurementId': "G-M6DDG0QVE6"
-}
+def analyze_salary_distribution(df, min_employees_per_grade=2, output_csv='salary_analysis.csv'):
+  # Ensure correct data types
+  df['Base Pay'] = pd.to_numeric(df['Base Pay'], errors='coerce')
+  df['Grade'] = pd.to_numeric(df['Grade'], errors='coerce').astype('Int64')
+  df = df.dropna(subset=['Base Pay', 'Grade'])
+
+  # Get list of all grades
+  all_grades = pd.DataFrame({'Grade': range(df['Grade'].min(), df['Grade'].max() + 1)})
+
+  # Calculate Mid values for grades with sufficient data
+  def find_optimal_mid(group):
+      salaries = group['Base Pay'].dropna().values
+      if len(salaries) >= min_employees_per_grade:
+          candidate_mids = np.linspace(salaries.min(), salaries.max(), 1000)
+          max_count = 0
+          optimal_mid = salaries.mean()
+          for mid in candidate_mids:
+              lower_bound = 0.8 * mid
+              upper_bound = 1.2 * mid
+              count = np.sum((salaries >= lower_bound) & (salaries <= upper_bound))
+              if count > max_count:
+                  max_count = count
+                  optimal_mid = mid
+          return optimal_mid
+      else:
+          return np.nan  # Insufficient data; will be interpolated
+
+  # Apply the function to each grade
+  mids = df.groupby('Grade').apply(find_optimal_mid).reset_index()
+  mids.columns = ['Grade', 'Mid']
+
+  # Merge with all grades to ensure all grades are included
+  mids = pd.merge(all_grades, mids, on='Grade', how='left')
+
+  # Flag to indicate how Mid was calculated
+  mids['Mid_Calculation'] = np.where(mids['Mid'].notna(), 'Calculated', 'Interpolated')
+
+  # Interpolate missing Mids
+  mids['Mid'] = mids['Mid'].interpolate(method='linear', limit_direction='both')
+
+  # Ensure that higher grades have higher Mids
+  mids.sort_values('Grade', inplace=True)
+  mids.reset_index(drop=True, inplace=True)
+
+  for i in range(1, len(mids)):
+      if mids.at[i, 'Mid'] <= mids.at[i - 1, 'Mid']:
+          # Compute 3% increase over previous Mid
+          increment_3_percent = 0.03 * mids.at[i - 1, 'Mid']
+          increments = [increment_3_percent]
+
+          # Check if there's an upper grade to calculate half midpoint differential
+          if i + 1 < len(mids):
+              midpoint_diff = mids.at[i + 1, 'Mid'] - mids.at[i - 1, 'Mid']
+              half_midpoint_diff = midpoint_diff / 2
+              if half_midpoint_diff > 0:
+                  increments.append(half_midpoint_diff)
+
+          # Determine the minimum positive increment
+          positive_increments = [inc for inc in increments if inc > 0]
+          if positive_increments:
+              min_increment = min(positive_increments)
+          else:
+              # Default to a small positive increment to ensure increasing Mid
+              min_increment = .3 * mids.at[i - 1, 'Mid']
+
+          # Adjust Mid_current
+          mids.at[i, 'Mid'] = mids.at[i - 1, 'Mid'] + min_increment
+          mids.at[i, 'Mid_Calculation'] = 'Adjusted'
+
+  # Calculate Range_Min and Range_Max
+  mids['Range_Min'] = 0.8 * mids['Mid']
+  mids['Range_Max'] = 1.2 * mids['Mid']
+
+  # Calculate Spread
+  mids['Spread'] = ((mids['Range_Max'] - mids['Range_Min']) / mids['Range_Min']) * 100
+
+  # Calculate Mid-point Differential
+  mids.sort_values('Grade', ascending=False, inplace=True)
+  mids['Mid_Pnt_Diff'] = (mids['Mid'] / mids['Mid'].shift(-1) - 1) * 100
+  mids['Mid_Pnt_Diff'] = mids['Mid_Pnt_Diff'].round(2).astype(str).replace('nan', '')
+
+  # Rounding
+  mids['Range_Min'] = mids['Range_Min'].round(0).astype(int)
+  mids['Mid'] = mids['Mid'].round(0).astype(int)
+  mids['Range_Max'] = mids['Range_Max'].round(0).astype(int)
+  mids['Spread'] = mids['Spread'].round(2)
+
+  # Calculate Range Overlap
+  mids.sort_values('Grade', ascending=False, inplace=True)
+  mids['Range_Overlap'] = (mids['Range_Max'].shift(-1) / mids['Range_Min']) - 1
+  mids['Range_Overlap'] = (mids['Range_Overlap'] * 100).round(2)
+  mids['Range_Overlap'] = mids['Range_Overlap'].fillna('')
+
+  # Arrange columns
+  result_df = mids[['Grade', 'Range_Min', 'Mid', 'Range_Max', 'Spread', 'Mid_Pnt_Diff', 'Range_Overlap', ]]
+
+  # Save to CSV
+  result_df.to_csv(output_csv, index=False)
+
+  return result_df
+
+# Call the function and assign the result to result_df
+result_df = analyze_salary_distribution(df, min_employees_per_grade=2, output_csv='salary_analysis.csv')
 
 
-# Initialize Pyrebase
-firebase = pyrebase.initialize_app(firebase_config)
-auth_pb = firebase.auth()
-db = firestore.client()
-
-# Initialize session state variables
-if 'user' not in st.session_state:
-    st.session_state.user = None
-if 'authentication_status' not in st.session_state:
-    st.session_state.authentication_status = None
-
-# Function to validate email
-def is_valid_email(email):
-    pattern = r'^[\w\.-]+@[\w\.-]+\.\w+$'
-    return re.match(pattern, email) is not None
-
-# Function to validate phone number
-def is_valid_phone(phone):
-    pattern = r'^\+?1?\d{9,15}$'
-    return re.match(pattern, phone) is not None
-
-def main():
-    st.title("Authentication System")
-    
-    # Sidebar menu
-    menu = ["Login", "Sign Up", "Reset Password"]
-    choice = st.sidebar.selectbox("Menu", menu)
-    
-    if choice == "Login":
-        st.subheader("Login")
-        
-        email = st.text_input("Email")
-        password = st.text_input("Password", type='password')
-        
-        if st.button("Login"):
-            try:
-                user = auth_pb.sign_in_with_email_and_password(email, password)
-                st.session_state.user = user
-                st.session_state.authentication_status = True
-                st.success("Logged in successfully!")
-                
-                # Fetch user data from Firestore
-                user_data = db.collection('users').document(user['localId']).get().to_dict()
-                st.write(f"Welcome {user_data['name']} from {user_data['company_name']}!")
-                
-            except Exception as e:
-                st.error("Invalid credentials or error occurred.")
-                st.session_state.authentication_status = False
-    
-    elif choice == "Sign Up":
-        st.subheader("Create New Account")
-        
-        with st.form("signup_form"):
-            name = st.text_input("Full Name")
-            email = st.text_input("Email")
-            company_name = st.text_input("Company Name")
-            country = st.text_input("Country")
-            phone = st.text_input("Phone Number")
-            password = st.text_input("Password", type='password')
-            confirm_password = st.text_input("Confirm Password", type='password')
-            
-            submit_button = st.form_submit_button("Sign Up")
-            
-            if submit_button:
-                if not all([name, email, company_name, country, phone, password, confirm_password]):
-                    st.error("Please fill in all fields")
-                elif not is_valid_email(email):
-                    st.error("Please enter a valid email address")
-                elif not is_valid_phone(phone):
-                    st.error("Please enter a valid phone number")
-                elif password != confirm_password:
-                    st.error("Passwords do not match")
-                else:
-                    try:
-                        # Create user in Firebase Authentication
-                        user = auth.create_user(
-                            email=email,
-                            password=password
-                        )
-                        
-                        # Store additional user data in Firestore
-                        user_data = {
-                            'name': name,
-                            'email': email,
-                            'company_name': company_name,
-                            'country': country,
-                            'phone': phone,
-                            'created_at': datetime.now()
-                        }
-                        
-                        db.collection('users').document(user.uid).set(user_data)
-                        
-                        st.success("Account created successfully! Please login.")
-                        
-                    except Exception as e:
-                        st.error(f"Error occurred: {str(e)}")
-    
-    elif choice == "Reset Password":
-        st.subheader("Reset Password")
-        
-        email = st.text_input("Email")
-        if st.button("Reset Password"):
-            try:
-                auth_pb.send_password_reset_email(email)
-                st.success("Password reset link sent to your email!")
-            except Exception as e:
-                st.error("Error occurred while sending reset link.")
-
-if __name__ == '__main__':
-    main()
-
-# Created/Modified files during execution:
-# Note: This script requires:
-# - firebase-credentials.json (Firebase Admin SDK credentials)
-# - requirements.txt (containing: streamlit, firebase-admin, pyrebase4)
+# Print result_df
+print(result_df.to_string(index=False))

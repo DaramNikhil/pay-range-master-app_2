@@ -120,12 +120,12 @@ def analyze_salary_structure(df, range_min_pct=0.8, range_max_pct=1.2):
           lower_mid = df.at[i+1, 'Target Pay']
           mid_point_diff = (range_mid / lower_mid) - 1
       else:
-          mid_point_diff = np.nan  # No midpoint differential for lowest grade
+          mid_point_diff = np.nan
       if i > 0:
           upper_range_min = df.at[i-1, 'Target Pay'] * range_min_pct
           range_overlap = (range_max / upper_range_min) - 1
       else:
-          range_overlap = np.nan  # No range overlap for highest grade
+          range_overlap = np.nan
       results.append({
           'Grade': grade,
           'Range Min': range_min,
@@ -154,12 +154,13 @@ def format_and_print_results(df_results):
 
 
 def main(df):
-  required_columns = ['Grade', 'Target Pay']
-  if not all(col in df.columns for col in required_columns):
+    output_csv = r"artifacts\option_1.csv"
+    required_columns = ['Grade', 'Target Pay']
+    if not all(col in df.columns for col in required_columns):
       print("Error: Input data must contain 'Grade' and 'Target Pay' columns.")
       return
-  # Analyze salary structure
-  df_results = analyze_salary_structure(df)
-  # Format and print results
-  df_display = format_and_print_results(df_results)
-  return df_display
+    df_results = analyze_salary_structure(df)
+    format_results = format_and_print_results(df_results)
+    format_results.to_csv(output_csv, index=False)
+    access_df = pd.read_csv(output_csv)
+    return access_df, df_results
